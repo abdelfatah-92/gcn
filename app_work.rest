@@ -1,0 +1,6 @@
+POST http://localhost:3001/api/persons
+    Content-Type: text/plain
+    { 
+      "name": "Mary Poppenhujujjmghmdieck", 
+      "number": "39575-278873-6423122"
+}
