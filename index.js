@@ -1,86 +1,76 @@
 const express = require('express')
+require('dotenv').config()
 const app = express()
 const morgan = require('morgan')
 const cors = require('cors')
-
+// const mongoose = require('mongoose')
+const Person = require('./modules/model')
 app.use(express.static('build'))
 app.use(morgan('tiny'))
 app.use(cors())
-morgan.token('request-body', (req) => JSON.stringify(req.body))
-
-
-let persons = [
-    { 
-      "id": 1,
-      "name": "Arto Hellas", 
-      "number": "040-123456"
-    },
-    { 
-      "id": 2,
-      "name": "Ada Lovelace", 
-      "number": "39-44-5323523"
-    },
-    { 
-      "id": 3,
-      "name": "Dan Abramov",
-      "number": "12-43-234345"
-    },
-    { 
-      "id": 4,
-      "name": "Mary Poppendieck", 
-      "number": "39-23-6423122"
-    }
-]
-
-const date = new Date()
-
-app.get('/api/persons',(req,res) => {
-    res.json(persons).end()
-})
-
-app.get('/info',(req,res) => {
-    res.send(`<P>phonebook has info for ${persons.length} pepole</p><P>${date}</p>`)
-    .end()
-})
-
-app.get('/api/persons/:id',(req, res) => {
-    const id = Number(req.params.id) 
-    const person = persons.find(person =>  person.id === id)
-    if (person){
-    res.json(person).end()} else {res.status(404).end()}
-})
-
-app.delete('/api/persons/:id',(req,res) => {
-  const id = Number(req.params.id)
-  persons = persons.filter(person => person.id !== id)
-  res.status(204).end()
-})
-const generateId = Math.floor(Math.random() * 1000000000)
-
-
 app.use(express.json())
-app.post('/api/persons', (request, res) => {
-
-  const body = request.body
-  console.log(body);
-  if(!body.name || !body.number ){
-    res.status(400).json({error: "name or number missing"})
-  }else{
-    if(persons.find(p => p.name === body.name)) {
-      res.status(400).json({error: "name must be unique"})
-    
-  }else{
-
-  const person ={
-    id: generateId,
+morgan.token('request-body', (req) => JSON.stringify(req.body))
+app.get('/api/persons', (req, res, next) => {
+  Person.find({}).then(persons => {
+    if (persons.length > 0) {
+      res.json(persons)
+    } else {
+      res.status(404).end()
+    }
+  }).catch(error => next(error))
+})
+const date = new Date()
+app.get('/info',(req,res) => {
+  res.send(`<P>phonebook has info for ${Person.findOne.length} pepole</p><P>${date}</p>`)
+    .end()})
+app.get('/api/persons/:id',(req, res, next) => {
+  Person.findById(req.params.id).then(person => {if(person){ res.json(person).end()} else {
+    res.status(404).json({ error : 'id is not correct' })
+  }
+  })
+    .catch(error => next(error))
+})
+app.delete('/api/persons/:id',(req,res,next) => {
+  Person.findByIdAndDelete(req.params.id).then(
+    res.status(204).end())
+    .catch(error => next(error))
+})
+app.put('/api/persons/:id',(req,res,next) => {
+  const body = req.body
+  const person = {
     name: body.name,
     number: body.number
   }
-  persons = persons.concat(person)
-  console.log(persons);
-  res.json(person)
-  }}
+  Person.findByIdAndUpdate(req.params.id, person ,{ new : true , runValidators : true , context : 'query' })
+    .then(ubdatedPerson =>
+      res.json(ubdatedPerson))
+    .catch(error => next(error))
 })
+app.post('/api/persons', (request, res, next) => {
+  const body = request.body
+  console.log(body)
+  const person = new Person({
+    name: body.name,
+    number: body.number
+  })
+  person.save().then(savedperson => {
+    console.log(savedperson)
+    res.json(person)})
+    .catch(error => next(error))
+})
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: 'then error' })
+}
+app.use(unknownEndpoint)
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message)
 
-const port = 3001
-app.listen(port, () => console.log(`app works in port 3001`))
+  if (error.name === 'CastError') {
+    return response.status(400).send({ error: 'catch error' }) } else if (error.name === 'ValidationError') {
+    return response.status(400).json({ error: error.message })
+  }
+  next(error)
+}
+app.use(errorHandler)
+const PORT = process.env.PORT
+app.listen(PORT, () => console.log('app works in port 3001'))
